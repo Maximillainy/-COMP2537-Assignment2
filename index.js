@@ -45,6 +45,41 @@ app.use(session({
 }
 ));
 
+function isValidSession(req) {
+    if (req.session.authenticated) {
+        return true;
+    }
+    return false;
+}
+
+function sessionValidation(req,res,next) {
+    if (isValidSession(req)) {
+        next();
+    }
+    else {
+        res.redirect('/login');
+    }
+}
+
+
+function isAdmin(req) {
+    if (req.session.user_type == 'admin') {
+        return true;
+    }
+    return false;
+}
+
+function adminAuthorization(req, res, next) {
+    if (!isAdmin(req)) {
+        res.status(403);
+        res.render("loginError.ejs", {error: "Not Authorized"});
+        return;
+    }
+    else {
+        next();
+    }
+}
+
 app.get('/', (req, res) => {
     if (req.session.authenticated) {
         res.render('indexLoggedIn.ejs', { name: req.session.username });
@@ -92,7 +127,7 @@ app.post('/submitUser', async (req, res) => {
 
     var hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    await userCollection.insertOne({ username: username, email, password: hashedPassword });
+    await userCollection.insertOne({ username: username, email, password: hashedPassword, user_type: "user" });
     console.log("Inserted user");
 
     res.redirect('/members');
@@ -123,6 +158,7 @@ app.post('/loggingin', async (req, res) => {
         console.log("correct password");
         req.session.authenticated = true;
         req.session.username = result.username;
+        req.session.user_type = result.user_type;
         req.session.cookie.maxAge = expireTime;
 
         res.redirect('/members');
@@ -133,6 +169,20 @@ app.post('/loggingin', async (req, res) => {
         res.render("loginError.ejs", { error: "incorrect password" });
         return;
     }
+});
+
+app.use('/loggedin', sessionValidation);
+app.get('/loggedin', (req,res) => {
+    if (!req.session.authenticated) {
+        res.redirect('/login');
+    }
+    res.render("loggedin");
+});
+
+app.get('/admin', sessionValidation, adminAuthorization, async (req,res) => {
+    const result = await userCollection.find().project({username: 1, _id: 1}).toArray();
+ 
+    res.render("admin.ejs", {users: result});
 });
 
 app.get('/logout', (req, res) => {
