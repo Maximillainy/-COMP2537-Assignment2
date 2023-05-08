@@ -180,7 +180,7 @@ app.get('/loggedin', (req,res) => {
 });
 
 app.get('/admin', sessionValidation, adminAuthorization, async (req,res) => {
-    const result = await userCollection.find().project({username: 1, _id: 1}).toArray();
+    const result = await userCollection.find().toArray();
  
     res.render("admin.ejs", {users: result});
 });
@@ -188,6 +188,16 @@ app.get('/admin', sessionValidation, adminAuthorization, async (req,res) => {
 app.get('/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/');
+});
+
+app.get('/updateUser/:type/:username', sessionValidation, adminAuthorization, async (req,res) => {
+    const username = req.params.username;
+    const type = req.params.type;
+
+    const result = await userCollection.findOne({ username });
+    await userCollection.updateOne({ username }, { $set: { user_type: type } });
+
+    res.redirect('/admin');
 });
 
 
