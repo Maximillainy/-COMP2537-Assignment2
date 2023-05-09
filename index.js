@@ -11,6 +11,8 @@ const app = express();
 
 const Joi = require("joi");
 
+const urlencoded = require('url');
+
 const port = process.env.PORT || 3000;
 
 // expires in 1 hour
@@ -45,6 +47,13 @@ app.use(session({
 }
 ));
 
+const navLinks = [
+    { label: "Home", path: "/" },
+    { label: "Members", path: "/members" },
+    { label: "Admin", path: "/admin" },
+    { label: "404", path: "/doesnotexist" }
+];
+
 function isValidSession(req) {
     if (req.session.authenticated) {
         return true;
@@ -52,7 +61,7 @@ function isValidSession(req) {
     return false;
 }
 
-function sessionValidation(req,res,next) {
+function sessionValidation(req, res, next) {
     if (isValidSession(req)) {
         next();
     }
@@ -72,7 +81,7 @@ function isAdmin(req) {
 function adminAuthorization(req, res, next) {
     if (!isAdmin(req)) {
         res.status(403);
-        res.render("loginError.ejs", {error: "Not Authorized"});
+        res.render("error.ejs", { error: "Not Authorized", tryAgainLink: "/" , navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
         return;
     }
     else {
@@ -82,9 +91,9 @@ function adminAuthorization(req, res, next) {
 
 app.get('/', (req, res) => {
     if (req.session.authenticated) {
-        res.render('indexLoggedIn.ejs', { name: req.session.username });
+        res.render('indexLoggedIn.ejs', { name: req.session.username, navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
     } else {
-        res.render('index.ejs');
+        res.render('index.ejs', { navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
     }
 });
 
@@ -93,17 +102,17 @@ app.get('/members', (req, res) => {
         res.redirect('/');
     } else {
         const randomImage = Math.floor(Math.random() * 3) + 1;
-        res.render('members.ejs', { name: req.session.username, image: randomImage });
+        res.render('members.ejs', { name: req.session.username, image: randomImage, navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
     }
 });
 
 app.get('/createUser', (req, res) => {
-    res.render("createUser.ejs");
+    res.render("createUser.ejs", { navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
 });
 
 
 app.get('/login', (req, res) => {
-    res.render("login.ejs");
+    res.render("login.ejs", { navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
 });
 
 app.post('/submitUser', async (req, res) => {
@@ -121,7 +130,7 @@ app.post('/submitUser', async (req, res) => {
     const validationResult = schema.validate({ username, email, password });
     if (validationResult.error != null) {
         const errorMessage = validationResult.error.details[0].message;
-        res.render("createUserError.ejs", { error: errorMessage });
+        res.render("error.ejs", { error: errorMessage, tryAgainLink: "/createUser" , navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
         return;
     }
 
@@ -142,7 +151,7 @@ app.post('/loggingin', async (req, res) => {
     if (validationResult.error != null) {
         const errorMessage = validationResult.error.details[0].message;
         console.log(validationResult.error);
-        res.render("loginError.ejs", { error: errorMessage });
+        res.render("error.ejs", { error: errorMessage, tryAgainLink: "/login",  navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
         return;
     }
 
@@ -151,7 +160,7 @@ app.post('/loggingin', async (req, res) => {
     console.log(result);
     if (!result) {
         console.log("user not found");
-        res.render("loginError.ejs", { error: "invalid email" });
+        res.render("error.ejs", { error: "invalid email", tryAgainLink: "/login" , navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
         return;
     }
     if (await bcrypt.compare(password, result.password)) {
@@ -166,23 +175,23 @@ app.post('/loggingin', async (req, res) => {
     }
     else {
         console.log("incorrect password");
-        res.render("loginError.ejs", { error: "incorrect password" });
+        res.render("error.ejs", { error: "incorrect password", tryAgainLink: "/login" , navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
         return;
     }
 });
 
 app.use('/loggedin', sessionValidation);
-app.get('/loggedin', (req,res) => {
+app.get('/loggedin', (req, res) => {
     if (!req.session.authenticated) {
         res.redirect('/login');
     }
-    res.render("loggedin");
+    res.render("loggedin", { navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
 });
 
-app.get('/admin', sessionValidation, adminAuthorization, async (req,res) => {
+app.get('/admin', sessionValidation, adminAuthorization, async (req, res) => {
     const result = await userCollection.find().toArray();
- 
-    res.render("admin.ejs", {users: result});
+
+    res.render("admin.ejs", { users: result, navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
 });
 
 app.get('/logout', (req, res) => {
@@ -190,7 +199,7 @@ app.get('/logout', (req, res) => {
     res.redirect('/');
 });
 
-app.get('/updateUser/:type/:username', sessionValidation, adminAuthorization, async (req,res) => {
+app.get('/updateUser/:type/:username', sessionValidation, adminAuthorization, async (req, res) => {
     const username = req.params.username;
     const type = req.params.type;
 
@@ -205,7 +214,7 @@ app.use(express.static(__dirname + "/public"));
 
 app.get("*", (req, res) => {
     res.status(404);
-    res.render("404.ejs");
+    res.render("404.ejs", { navLinks: navLinks, currentURL: urlencoded.parse(req.url).pathname });
 })
 
 app.listen(port, () => {
